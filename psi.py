@@ -5,7 +5,7 @@ import time
 def set_intersection(set1, set2):
     # Assuming set1 and set2 only contain binary values
     intersection = [set1[i] * set2[i] for i in range(len(set1))]
-    # output = 0
+    output = 0
     # for i in range(len(set1)):
     #     output += intersection[i]
     for i in range(len(set1)):
