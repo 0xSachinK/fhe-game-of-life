@@ -15,6 +15,8 @@ def execute_and_time(f, *args):
 
 ####### BOOLEAN FUNCITONS #######
 
+# Todo: Try fhe.not, fhe.and, fhe.or
+
 def NOT(a):
     return a ^ 1
 
@@ -43,13 +45,6 @@ def sum(elements, zeros):
         result = add(elements[i], result)
     return result
 
-def is_alive_in_native(cell, neighbours, zeros):
-    sum_neighbours = sum(neighbours, zeros)
-    sum_is_2_or_3 = sum_neighbours[1] and (not sum_neighbours[2])
-    sum_is_3 = sum_neighbours[0] and sum_neighbours[1] and (not sum_neighbours[2])    
-    alive = sum_is_3 or (cell and sum_is_2_or_3)
-    return int(alive)
-
 # The encryption of zero is different under different key
 def is_alive(cell, neighbours, zeros):
     sum_neighbours = sum(neighbours, zeros)
@@ -58,63 +53,78 @@ def is_alive(cell, neighbours, zeros):
     alive = OR(sum_is_3, (cell * sum_is_2_or_3))
     return alive
 
+@fhe.compiler({"enc_states": "encrypted", "enc_zeros": "encrypted"})
+def board_update(
+    enc_states,
+    enc_zeros
+):
+
+    n_rows = 4
+    n_cols = 4
+
+    new_enc_states = []
+    for i in range(n_rows):
+        # Is this computation "equivalent" to non-constrained computation
+        im = n_rows - 1 if i == 0 else i - 1
+        ip = 0 if i == n_rows - 1 else i + 1
+
+        for j in range(n_cols):
+            jm = n_cols - 1 if j == 0 else j - 1
+            jp = 0 if j == n_cols - 1 else j + 1
+
+            # get neighbours
+            n1 = enc_states[im * n_cols + jm]
+            n2 = enc_states[im * n_cols + j]
+            n3 = enc_states[im * n_cols + jp]
+            n4 = enc_states[i * n_cols + jm]
+            n5 = enc_states[i * n_cols + jp]
+            n6 = enc_states[ip * n_cols + jm]
+            n7 = enc_states[ip * n_cols + j]
+            n8 = enc_states[ip * n_cols + jp]
+            
+            enc_cell = enc_states[i * n_cols + j]
+            enc_neighbours = [n1, n2, n3, n4, n5, n6, n7, n8]
+            next_is_alive = is_alive(enc_cell, enc_neighbours, enc_zeros)
+            new_enc_states.append(next_is_alive)
+
+    return tuple(new_enc_states)
+
+
 ###### TESTING ######
 
-
-def execute_on_inputs(circuit, cell, neighbours, zeros):
-    encrypted_cell, encrypted_neighbours, encrypted_zeros = circuit.encrypt(cell, neighbours, zeros)
-    # print('Encrypted inputs:', encrypted_cell.serialize(), encrypted_neighbours.serialize(), encrypted_zeros.serialize())
-
-    encrypted_result = circuit.run(encrypted_cell, encrypted_neighbours, encrypted_zeros)
-    # print('Encrypted Result', encrypted_result.serialize())
-
-    return circuit.decrypt(encrypted_result)
+def print_state(state):
+    n = int(len(state) ** 0.5)
+    for i in range(n):
+        print(''.join('⬛' if state[i * n + j] == 1 else '⬜' for j in range(n)))
+    print()
 
 
-inputset = [
-    (0, [0 for i in range(8)], [0 for i in range(3)]), 
-    (1, [1 for i in range(8)], [0 for i in range(3)])
-]
-compiler = fhe.Compiler(
-    is_alive, 
-    {"cell": "encrypted", "neighbours": "encrypted", "zeros": "encrypted"}
-)
 print('Compiling...')
-circuit = compiler.compile(inputset)
+inputset = [
+    ([0 for _ in range(16)], [0 for _ in range(3)]), 
+    ([1 for _ in range(16)], [0 for _ in range(3)])
+]
+circuit = board_update.compile(inputset, composable=True)
 print('Keygen...')
 circuit.keygen()
 
 
-print('Running function on inputs')
-
-# Test 1
-cell = 1
-neighbours = [1, 1, 1, 1, 1, 1, 1, 1]
-zeros = [0, 0, 0]
-result = execute_on_inputs(circuit, cell, neighbours, zeros)
-print('Result:', result, 'Result (native execution):', is_alive_in_native(cell, neighbours, zeros))
-
-
-# Test 2
-cell = 0
-neighbours = [1, 1, 1, 0, 0, 0, 0, 0]
-zeros = [0, 0, 0]
-result = execute_on_inputs(circuit, cell, neighbours, zeros)
-print('Result:', result, 'Result (native execution):', is_alive_in_native(cell, neighbours, zeros))
+states = [
+    0, 1, 0, 0,
+    0, 0, 1, 0, 
+    0, 1, 0, 0, 
+    0, 0, 1, 0, 
+]
+zeros = [0 for _ in range(3)]
 
 
-# Test 3
-cell = 1
-neighbours = [1, 1, 1, 0, 0, 0, 0, 0]
-zeros = [0, 0, 0]
-result = execute_on_inputs(circuit, cell, neighbours, zeros)
-print('Result:', result, 'Result (native execution):', is_alive_in_native(cell, neighbours, zeros))
+# Simulate the board
+rounds = 2
+print_state(states)
 
-# Test 4
-cell = 1
-neighbours = [1, 1, 0, 0, 0, 0, 0, 0]
-zeros = [0, 0, 0]
-result = execute_on_inputs(circuit, cell, neighbours, zeros)
-print('Result:', result, 'Result (native execution):', is_alive_in_native(cell, neighbours, zeros))
-
+for i in range(rounds):
+    enc_states, enc_zeros = circuit.encrypt(states, zeros)
+    enc_states = circuit.run(enc_states, enc_zeros)
+    states = list(circuit.decrypt(enc_states))
+    print_state(states)
 
