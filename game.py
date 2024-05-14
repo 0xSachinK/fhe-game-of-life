@@ -2,6 +2,8 @@ from concrete import fhe
 import random
 import time
 
+N_ROWS = 6
+N_COLS = 6
 
 ####### UTILS ##########
 
@@ -59,8 +61,8 @@ def board_update(
     enc_zeros
 ):
 
-    n_rows = 4
-    n_cols = 4
+    n_rows = N_ROWS
+    n_cols = N_COLS
 
     new_enc_states = []
     for i in range(n_rows):
@@ -101,8 +103,8 @@ def print_state(state):
 
 print('Compiling...')
 inputset = [
-    ([0 for _ in range(16)], [0 for _ in range(3)]), 
-    ([1 for _ in range(16)], [0 for _ in range(3)])
+    ([0 for _ in range(N_ROWS * N_COLS)], [0 for _ in range(3)]), 
+    ([1 for _ in range(N_ROWS * N_COLS)], [0 for _ in range(3)])
 ]
 circuit = board_update.compile(inputset, composable=True)
 print('Keygen...')
@@ -110,16 +112,18 @@ circuit.keygen()
 
 
 states = [
-    0, 1, 0, 0,
-    0, 0, 1, 0, 
-    0, 1, 0, 0, 
-    0, 0, 1, 0, 
+    0, 0, 0, 0, 0, 0,
+    0, 1, 1, 0, 0, 0,
+    0, 1, 1, 0, 1, 0,
+    0, 0, 0, 1, 1, 0,
+    0, 0, 0, 1, 0, 0,
+    0, 0, 0, 0, 0, 0
 ]
 zeros = [0 for _ in range(3)]
 
 
 # Simulate the board
-rounds = 2
+rounds = 5
 print_state(states)
 
 for i in range(rounds):
