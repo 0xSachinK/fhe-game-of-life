@@ -7,11 +7,11 @@ N_COLS = 6
 
 ####### UTILS ##########
 
-def execute_and_time(f, *args):
+def execute_and_time(message, f, *args):
     start_time = time.time()
     result = f(*args)
     end_time = time.time()
-    print(f"Execution time : {end_time - start_time} seconds")
+    print(f"INFO: {message}; Execution time : {end_time - start_time} seconds")
     return result
 
 
@@ -89,7 +89,7 @@ def board_update(
             next_is_alive = is_alive(enc_cell, enc_neighbours, enc_zeros)
             new_enc_states.append(next_is_alive)
 
-    return tuple(new_enc_states)
+    return fhe.array(new_enc_states)
 
 
 ###### TESTING ######
@@ -126,9 +126,13 @@ zeros = [0 for _ in range(3)]
 rounds = 5
 print_state(states)
 
+enc_states, enc_zeros = circuit.encrypt(states, zeros)
+
 for i in range(rounds):
-    enc_states, enc_zeros = circuit.encrypt(states, zeros)
-    enc_states = circuit.run(enc_states, enc_zeros)
-    states = list(circuit.decrypt(enc_states))
+    # enc_states, enc_zeros = execute_and_time('Encrypt', circuit.encrypt, states, zeros)
+    enc_states = execute_and_time('Run', circuit.run, enc_states, enc_zeros)
+
+    # Don't need to decrypt; Decryption is only for printing
+    states = execute_and_time('Decrypt', circuit.decrypt, enc_states)
     print_state(states)
 
