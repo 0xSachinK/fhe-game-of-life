@@ -15,50 +15,27 @@ def execute_and_time(message, f, *args):
     return result
 
 
-####### BOOLEAN FUNCITONS #######
-
-# Todo: Try fhe.not, fhe.and, fhe.or
-
-def NOT(a):
-    return a ^ 1
-
-
-def AND(a, b):
-    return a * b
-
-
-def OR(a, b):
-    return NOT(AND(NOT(a), NOT(b)))
-
-
 ####### GAME FUNCTIONS #########
 
-def add(a, b):
-    c1 = a ^ b[0]
-    r = a * b[0]
-    c2 = r ^ b[1]
-    r = r * b[1]
-    c3 = r ^ b[2]
-    return (c1, c2, c3)
-
-def sum(elements, zeros):
-    result = add(elements[0], zeros)
+def sum(elements, zero):
+    result = elements[0] + zero
     for i in range(1, len(elements)):
-        result = add(elements[i], result)
+        result = elements[i] + result
     return result
 
 # The encryption of zero is different under different key
-def is_alive(cell, neighbours, zeros):
-    sum_neighbours = sum(neighbours, zeros)
-    sum_is_2_or_3 = AND(sum_neighbours[1], NOT(sum_neighbours[2]))
-    sum_is_3 = AND(sum_neighbours[0], AND(sum_neighbours[1], NOT(sum_neighbours[2])))
-    alive = OR(sum_is_3, (cell * sum_is_2_or_3))
+def is_alive(cell, neighbours, zero):
+    sum_neighbours = sum(neighbours, zero)
+    sum_is_2 = sum_neighbours == 2
+    sum_is_3 = sum_neighbours == 3
+    sum_is_2_or_3 = sum_is_2 | sum_is_3
+    alive = sum_is_3 | (cell * sum_is_2_or_3)
     return alive
 
-@fhe.compiler({"enc_states": "encrypted", "enc_zeros": "encrypted"})
+@fhe.compiler({"enc_states": "encrypted", "enc_zero": "encrypted"})
 def board_update(
     enc_states,
-    enc_zeros
+    enc_zero
 ):
 
     n_rows = N_ROWS
@@ -86,7 +63,7 @@ def board_update(
             
             enc_cell = enc_states[i * n_cols + j]
             enc_neighbours = [n1, n2, n3, n4, n5, n6, n7, n8]
-            next_is_alive = is_alive(enc_cell, enc_neighbours, enc_zeros)
+            next_is_alive = is_alive(enc_cell, enc_neighbours, enc_zero)
             new_enc_states.append(next_is_alive)
 
     return fhe.array(new_enc_states)
@@ -102,9 +79,10 @@ def print_state(state):
 
 
 print('Compiling...')
+# Could probably switch a bit here for further optimization, because we don't care about sum = 9
 inputset = [
-    ([0 for _ in range(N_ROWS * N_COLS)], [0 for _ in range(3)]), 
-    ([1 for _ in range(N_ROWS * N_COLS)], [0 for _ in range(3)])
+    ([0 for _ in range(N_ROWS * N_COLS)], 0), 
+    ([1 for _ in range(N_ROWS * N_COLS)], 0)
 ]
 circuit = board_update.compile(inputset, composable=True)
 print('Keygen...')
@@ -112,25 +90,24 @@ circuit.keygen()
 
 
 states = [
-    0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0,
     0, 1, 1, 0, 0, 0,
-    0, 1, 1, 0, 1, 0,
-    0, 0, 0, 1, 1, 0,
-    0, 0, 0, 1, 0, 0,
-    0, 0, 0, 0, 0, 0
+    1, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0,
 ]
-zeros = [0 for _ in range(3)]
-
+zero = 0
 
 # Simulate the board
 rounds = 5
 print_state(states)
 
-enc_states, enc_zeros = circuit.encrypt(states, zeros)
+enc_states, enc_zero = circuit.encrypt(states, zero)
 
 for i in range(rounds):
-    # enc_states, enc_zeros = execute_and_time('Encrypt', circuit.encrypt, states, zeros)
-    enc_states = execute_and_time('Run', circuit.run, enc_states, enc_zeros)
+    # enc_states, enc_zero = execute_and_time('Encrypt', circuit.encrypt, states, zero)
+    enc_states = execute_and_time('Run', circuit.run, enc_states, enc_zero)
 
     # Don't need to decrypt; Decryption is only for printing
     states = execute_and_time('Decrypt', circuit.decrypt, enc_states)
